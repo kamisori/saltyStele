@@ -1,4 +1,5 @@
 import sys
+import saltyStele
 
 from PyQt4.QtGui import QApplication, QTableWidget, QTableWidgetItem
 from PyQt4.QtCore import QUrl
@@ -12,6 +13,10 @@ class UrlInput(QLineEdit):
         super(UrlInput, self).__init__()
         self.browser = browser
         self.returnPressed.connect(self._return_pressed)
+
+    def loadTestSite(self):
+        url = QUrl("file:///home/mlatu/work/saltyStele/test.html")
+        self.browser.load(url)
 
     def _return_pressed(self):
         url = QUrl(self.text())
@@ -68,11 +73,11 @@ class RequestsTable(QTableWidget):
             self.setItem(last_row, col, QTableWidgetItem(dat))
 
 class Manager(QNetworkAccessManager):
-    def __init__(self, table, page):
+    def __init__(self, table, saltyBrowser):
         QNetworkAccessManager.__init__(self)
         self.finished.connect(self._finished)
         self.table = table
-        self.page = page
+        self.saltyBrowser = saltyBrowser
 
     def _finished(self, reply):
         headers = reply.rawHeaderPairs()
@@ -81,9 +86,8 @@ class Manager(QNetworkAccessManager):
         url = reply.url().toString()
         status = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
         status, ok = status.toInt()
-        stringList = page.mainFrame().findAllElements("DIV.KEYBASE_SALTPACK_ENCRYPTED_MESSAGE") #map(str, page.mainFrame().documentElement().classes())
-        self.table.update([url, str(status), stringList.first().toPlainText()])
-
+        self.table.update([url, str(status), content_type])
+        saltyBrowser.processDivs()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -94,7 +98,8 @@ if __name__ == "__main__":
     requests_table = RequestsTable()
 
     page = QWebPage()
-    manager = Manager(requests_table, page)
+    saltyBrowser = saltyStele.SaltyBrowser(page)
+    manager = Manager(requests_table, saltyBrowser)
     page.setNetworkAccessManager(manager)
     browser.setPage(page)
 
@@ -110,5 +115,7 @@ if __name__ == "__main__":
     main_frame = QWidget()
     main_frame.setLayout(grid)
     main_frame.show()
+
+    url_input.loadTestSite()
 
     sys.exit(app.exec_())
