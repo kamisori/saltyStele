@@ -1,39 +1,48 @@
+import subprocess
+import tempfile
+import os
 class SaltyBrowser:
     def __init__(self, page):
         self.page = page
         self.saltyCrypto = SaltyCrypto()
 
     def processDivs(self):
-        self.saltyDivs = page.mainFrame().findAllElements("DIV.saltyStele")
+        self.saltyDivs = self.page.mainFrame().findAllElements("DIV.saltyStele")
         for div in self.saltyDivs:
-            processDiv(div)
+            self.processDiv(div)
 
     def processDiv(self, div):
+        msg = ""
         if div.hasAttribute("type"):
             divType = div.attribute("type")
             if divType == "EncryptedMessage" or divType == "EncryptedGroupMessage" or divType == "SignedMessage":
-                signee = saltyCrypto.verifyDIV(div)
+                signee = self.saltyCrypto.verifyDIV(div)
             if divType == "EncryptedMessage":
-                msg = saltyCrypto.decryptDIV(div)
+                msg = self.saltyCrypto.decryptDIV(div)
             elif divType == "EncryptedGroupMessage":
-                msg = saltyCrypto.decryptGroupDIV(div)
+                msg = self.saltyCrypto.decryptGroupDIV(div)
             elif divType != "SignedMessage":
                 print("unknown type", divType)
+            if len(msg) == 0:
+                div.setPlainText(str(div.toPlainText()) + " signed by " + signee)
+            else:
+                div.setPlainText(msg + " signed by " + signee)
         else:
             print("has no type")
 
 class SaltyCrypto:
+    def __init__(self):
+        self.keybase = KeybaseHelper()
     def decryptDIV(self, div):
-        return keybase.decrypt(div.toPlainText())
-
+        return self.keybase.decrypt(div.toPlainText())
 
     def decryptGroupDIV(self, div):
         import AES
         if div.hasAttribute("encryptedKey"):
             encryptedKey = div.attribute("encryptedKey")
             encryptedKeySignature = div.attribute("encryptedKeySignature")
-            keySignee = keybase.verify(encryptedKey, encryptedKeySignature)
-            aesKey = keybase.decrypt(encryptedKey)
+            keySignee = self.keybase.verify(encryptedKey, encryptedKeySignature)
+            aesKey = self.keybase.decrypt(encryptedKey)
             aesD = AESDecryptor(aesKey)
             encryptedMessage = aesD.decrypt(div.toPlainText())
         else:
@@ -42,29 +51,39 @@ class SaltyCrypto:
     def verifyDIV(self, div):
         msg = div.toPlainText()
         if div.hasAttribute("signature"):
-            signee = keybase.verify(msg, div.attribute("signature"))
+            signature = div.attribute("signature")
+            signee = self.keybase.verify(msg, signature)
         else:
             if "SIGNED" in msg:
-                signee = keybase.verify(msg)
+                signee = self.keybase.verify(msg)
             else:
                 signee = "Not signed by anyone"
         return signee
 
-class keybaseHelper:
-    import subprocess
+class KeybaseHelper:
     def decrypt(self, msg):
-        return subprocess.call('keybase decrypt -m "' + msg + '"')
+        try:
+            result = subprocess.check_output('keybase decrypt -m "' + str(msg) + '"', shell=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as err:
+            result = err.output
+        return result
 
     def verify(self, msg):
-        return subprocess.call('keybase verify -m "' + msg + '"')
+        try:
+            result = subprocess.check_output('keybase verify -m "' + str(msg) + '"', shell=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as err:
+            result = err.output
+        return result
 
     def verify(self, msg, signature):
-        import tempfile
         #write signature into temporary file
-        tFile = tempFile.NamedTemporaryFile(delete=False)
+        tFile = tempfile.NamedTemporaryFile(mode="w+t", delete=False)
         tFile.write(signature)
-        tFile.close
-        result = subprocess.call('keybase verify -m "' + msg + '" -d "' + tFile.name + '"')
+        tFile.close()
+        try:
+            result = subprocess.check_output('keybase verify -m "' + str(msg) + '" -d "' + tFile.name + '"', shell=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as err:
+            result = err.output
         os.unlink(tFile.name)
         return result
 
