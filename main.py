@@ -15,7 +15,8 @@ class UrlInput(QLineEdit):
         self.returnPressed.connect(self._return_pressed)
 
     def loadTestSite(self):
-        url = QUrl("file:///home/mlatu/work/saltyStele/test.html")
+        #url = QUrl("file:///home/mlatu/work/saltyStele/test.html")
+        url = QUrl("file:///d:/test.html")
         self.browser.load(url)
 
     def _return_pressed(self):
